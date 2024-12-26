@@ -10,8 +10,6 @@ const {
   getK8sRuntime,
   getOAuthInfo,
   getClusterRole,
-  getSupportGpuList,
-  getInstallerSpec,
   getTheme,
 } = require('../services/session');
 
@@ -43,6 +41,9 @@ const renderIndex = async (ctx, params) => {
   const dllManifest = getDllManifest();
   const localeManifest = getLocaleManifest();
   const importMap = getImportMap();
+  const extStyles = params?.installedExtensions
+    ?.filter(item => !!item.styleLink)
+    .map(ext => ext.styleLink);
 
   await ctx.render('index', {
     manifest,
@@ -51,17 +52,20 @@ const renderIndex = async (ctx, params) => {
     title: useDefaultTheme ? defaultTheme?.tabTitle : title,
     favicon,
     background,
+    extStyles,
     hostname: ctx.hostname,
     importMap: JSON.stringify(importMap),
-    globals: JSON.stringify({
-      config: clientConfig,
-      manifest,
-      localeManifest,
-      theme,
-      defaultTheme,
-      useDefaultTheme,
-      ...params,
-    }),
+    globals: encodeURIComponent(
+      JSON.stringify({
+        config: clientConfig,
+        manifest,
+        localeManifest,
+        theme,
+        defaultTheme,
+        useDefaultTheme,
+        ...params,
+      }),
+    )
   });
 };
 
@@ -80,16 +84,18 @@ const renderV3Index = async (ctx, params) => {
     isDev: global.MODE_DEV,
     title: clientConfig.title,
     hostname: ctx.hostname,
-    globals: JSON.stringify({
-      config: clientConfig,
-      localeManifest,
+    globals: encodeURIComponent(
+      JSON.stringify({
+        config: clientConfig,
+        localeManifest,
 
-      theme,
-      defaultTheme,
-      useDefaultTheme,
+        theme,
+        defaultTheme,
+        useDefaultTheme,
 
-      ...params,
-    }),
+        ...params,
+      }),
+    )
   });
 };
 
@@ -120,6 +126,12 @@ const renderViewErr = async (ctx, err) => {
         message: 'Unable to access the api server',
       });
     } else {
+      await ctx.render('error', {
+        title: useDefaultTheme ? defaultTheme?.tabTitle : title,
+        favicon,
+        t: ctx.t.bind(ctx),
+        message: '',
+      });
       ctx.app.emit('error', err);
     }
   } else {
@@ -156,17 +168,19 @@ const renderTerminal = async ctx => {
       favicon,
       hostname: ctx.hostname,
       importMap: JSON.stringify(importMap),
-      globals: JSON.stringify({
-        config: clientConfig,
-        manifest,
-        localeManifest,
-        user,
-        ksConfig,
-        runtime,
-        theme,
-        defaultTheme,
-        useDefaultTheme,
-      }),
+      globals: encodeURIComponent(
+        JSON.stringify({
+          config: clientConfig,
+          manifest,
+          localeManifest,
+          user,
+          ksConfig,
+          runtime,
+          theme,
+          defaultTheme,
+          useDefaultTheme,
+        }),
+      )
     });
   } catch (err) {
     await renderViewErr(ctx, err);
@@ -182,18 +196,16 @@ const renderView = async ctx => {
     const clusterRole = await getClusterRole(ctx);
     const ksConfig = await getKSConfig(ctx);
 
-    const [user, runtime, supportGpuType, installer, installedExtensions] = await Promise.all([
+    const [user, runtime, installedExtensions] = await Promise.all([
       getCurrentUser(ctx, clusterRole, ksConfig.multicluster),
       getK8sRuntime(ctx),
-      getSupportGpuList(ctx),
-      getInstallerSpec(ctx),
       getInstalledExtensions(ctx),
     ]);
 
     await renderIndex(ctx, {
       ksConfig: {
         ...ksConfig,
-        metrics_server: get(installer, 'metrics_server.enabled', false),
+        metrics_server: false,
       },
       user,
       runtime,
@@ -201,7 +213,7 @@ const renderView = async ctx => {
       installedExtensions,
       config: {
         ...clientConfig,
-        supportGpuType: [...supportGpuType, ...clientConfig.supportGpuType],
+        supportGpuType: [...clientConfig.supportGpuType],
       },
     });
   } catch (err) {
@@ -214,24 +226,22 @@ const renderV3View = async ctx => {
     const clusterRole = await getClusterRole(ctx);
     const ksConfig = await getKSConfig(ctx);
 
-    const [user, runtime, supportGpuType, installer] = await Promise.all([
+    const [user, runtime] = await Promise.all([
       getCurrentUser(ctx, clusterRole, ksConfig.multicluster),
       getK8sRuntime(ctx),
-      getSupportGpuList(ctx),
-      getInstallerSpec(ctx),
     ]);
 
     await renderV3Index(ctx, {
       ksConfig: {
         ...ksConfig,
-        metrics_server: get(installer, 'metrics_server.enabled', false),
+        metrics_server: false,
       },
       user,
       runtime,
       clusterRole,
       config: {
         ...clientConfig,
-        supportGpuType: [...supportGpuType, ...clientConfig.supportGpuType],
+        supportGpuType: [...clientConfig.supportGpuType],
       },
     });
   } catch (err) {

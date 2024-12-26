@@ -117,13 +117,11 @@ interface DeleteWorkspaceOptions extends PathParams {
 }
 
 const deleteWorkspace = ({ shouldDeleteResource, ...params }: DeleteWorkspaceOptions) => {
-  const data = !shouldDeleteResource
-    ? {
-        kind: 'DeleteOptions',
-        apiVersion: 'v1',
-        propagationPolicy: 'Orphan',
-      }
-    : {};
+  const data = {
+    kind: 'DeleteOptions',
+    apiVersion: 'v1',
+    propagationPolicy: shouldDeleteResource ? 'Background' : 'Orphan',
+  };
   return request.delete<never, OriginalWorkspace, Record<string, any>>(getDetailUrl(params), {
     data,
   });
